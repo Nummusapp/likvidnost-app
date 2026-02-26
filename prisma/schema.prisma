@@ -1,0 +1,108 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PartnerType {
+  CUSTOMER
+  SUPPLIER
+  OTHER
+}
+
+enum InvoiceDirection {
+  IN
+  OUT
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+}
+
+model Company {
+  id                  String    @id @default(cuid())
+  name                String
+  currency            String
+  openingBalanceCents Int
+  createdAt           DateTime  @default(now())
+
+  partners  Partner[]
+  invoices  Invoice[]
+  scenarios Scenario[]
+}
+
+model Partner {
+  id        String      @id @default(cuid())
+  companyId String
+  type      PartnerType
+  name      String
+  vatId     String?
+  iban      String?
+  email     String?
+  createdAt DateTime    @default(now())
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([companyId])
+}
+
+model Invoice {
+  id                  String           @id @default(cuid())
+  companyId           String
+  partnerId           String?
+  direction           InvoiceDirection
+  issuerName          String
+  issuerAddress       String
+  issuerVatId         String
+  article             String
+  netCents            Int
+  vatCents            Int
+  grossCents          Int
+  currency            String
+  invoiceDate         DateTime
+  dueDate             DateTime
+  expectedPaymentDate DateTime
+  status              InvoiceStatus
+  paidDate            DateTime?
+  createdAt           DateTime         @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  partner Partner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  scenarioOverrides ScenarioOverride[]
+
+  @@index([companyId])
+  @@index([partnerId])
+}
+
+model Scenario {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  overrides ScenarioOverride[]
+
+  @@index([companyId])
+}
+
+model ScenarioOverride {
+  id                  String   @id @default(cuid())
+  scenarioId          String
+  invoiceId           String
+  expectedPaymentDate DateTime
+
+  scenario Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([scenarioId, invoiceId])
+  @@index([scenarioId])
+  @@index([invoiceId])
+}
